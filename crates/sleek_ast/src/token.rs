@@ -5,13 +5,13 @@ use super::HtmlTag;
 #[derive(Debug, PartialEq)]
 pub enum HtmlToken {
     DocType {
-        name: String,
-        force_quirks: bool,
+        root: String,
+        identifier: Option<DocTypeIdentifier>,
     },
     OpeningTag {
         name: HtmlTag,
         attributes: Vec<HtmlAttribute>,
-        location: Span,
+        span: Span,
         self_closing: bool,
     },
     ClosingTag {
@@ -28,7 +28,7 @@ pub enum HtmlToken {
     },
     Comment {
         content: String,
-        location: Span,
+        span: Span,
     },
     EOF {
         location: [usize; 2],
@@ -39,7 +39,7 @@ pub enum HtmlToken {
 pub struct HtmlAttribute {
     pub key: String,
     pub value: Option<String>,
-    pub quoted: AttributeQuoteType,
+    pub quote_type: AttributeQuoteType,
 }
 
 #[derive(Debug, PartialEq)]
@@ -52,4 +52,10 @@ pub enum AttributeQuoteType {
     Single,
     Double,
     None,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum DocTypeIdentifier {
+    System,
+    Public,
 }

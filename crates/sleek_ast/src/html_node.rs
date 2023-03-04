@@ -6,8 +6,8 @@ use super::ElementRef;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Span {
-    start: [usize; 2],
-    end: [usize; 2],
+    pub start: [usize; 2],
+    pub end: [usize; 2],
 }
 
 impl Span {

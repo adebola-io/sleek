@@ -1,4 +1,4 @@
-use sleek_utils::StackIterator;
+use sleek_utils::QueueIterator;
 
 use super::SelectorStore;
 
@@ -45,7 +45,7 @@ pub enum Relation {
 ///
 /// Returns a `SelectorError` instead if there is a error encountered while parsing.
 pub fn parse_selector(selector: &str) -> Result<SelectorStore, SelectorError> {
-    let mut chars = StackIterator::new(selector.chars());
+    let mut chars = QueueIterator::new(selector.chars());
     let mut store = SelectorStore::new();
     let mut state = State::Start;
 

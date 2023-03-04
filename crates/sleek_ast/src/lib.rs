@@ -16,7 +16,7 @@ pub use html_node::*;
 pub use query::Query;
 pub use selector::*;
 pub use tag::HtmlTag;
-pub use token::HtmlToken;
+pub use token::{AttributeQuoteType, DocTypeIdentifier, HtmlAttribute, HtmlToken};
 pub use tree::HtmlTree;
 
 // Parsing
