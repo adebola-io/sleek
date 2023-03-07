@@ -67,7 +67,7 @@ pub trait Query<'a>: Node<'a, ElementRef> {
     fn get_elements_by_tag_name(&'a self, tag: &HtmlTag) -> Vec<&ElementRef> {
         let mut matches = vec![];
         for child in self.children() {
-            if &child.__element.borrow().name == tag {
+            if child.tag_name() == tag {
                 matches.push(child);
             }
             if child.has_children() {

@@ -24,22 +24,17 @@ impl Selector {
                 SelectorPattern::Universal => {
                     // All elements match.
                 }
-                SelectorPattern::Tag(tag) if &element_ref.__element.borrow().name != tag => {
+                SelectorPattern::Tag(tag) if element_ref.tag_name() != tag => {
                     return false;
                 }
                 SelectorPattern::Class(class_name)
-                    if !element_ref
-                        .__element
-                        .borrow()
-                        .class_list
-                        .borrow()
-                        .contains(class_name) =>
+                    if !element_ref.class_list().contains(class_name) =>
                 {
                     return false;
                 }
                 SelectorPattern::Id(id) => match element_ref.id() {
                     Some(element_id) => {
-                        if &element_id != id {
+                        if element_id != id {
                             return false;
                         }
                     }
@@ -50,7 +45,7 @@ impl Selector {
                         None => return false,
                         Some(element_value) => {
                             if let Some(s_value) = value_opt {
-                                if s_value != &element_value {
+                                if s_value != element_value {
                                     return false;
                                 }
                             }
@@ -110,19 +105,20 @@ impl Selector {
                     match element_ref.parent() {
                         None => return false,
                         Some(parent_ref) => {
-                            let index = parent_ref.get_index_of(element_ref).unwrap();
+                            let mut index = parent_ref.get_index_of(element_ref).unwrap();
                             if index == 0 {
                                 return false;
                             }
-                            match parent_ref.__element.borrow().child_nodes[index - 1]
-                                .as_element_ref()
+                            index -= 1;
+                            // Find the nearest element before.
+                            let mut adjacent_ref = &parent_ref.element().child_nodes[index];
+                            while !(adjacent_ref.is_element()) && index > 0 {
+                                adjacent_ref = &parent_ref.element().child_nodes[index - 1];
+                            }
+                            if !(adjacent_ref.is_element()
+                                && relation[0].compare(&adjacent_ref.as_element_ref().unwrap()))
                             {
-                                Some(adjacent_ref) => {
-                                    if !relation[0].compare(&adjacent_ref) {
-                                        return false;
-                                    }
-                                }
-                                None => return false,
+                                return false;
                             }
                         }
                     }

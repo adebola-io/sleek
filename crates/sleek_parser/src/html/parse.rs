@@ -121,21 +121,19 @@ impl HtmlParser {
                     HtmlToken::EOF { location } => {
                         self.errors.push(HtmlParseError {
                             error_type: HtmlParseErrorType::UnclosedTag(
-                                parent_element.__element.borrow().name.clone(),
+                                parent_element.tag_name().clone(),
                             ),
                             location,
                         });
                         break;
                     }
                     // Closing tag for parent encountered.
-                    HtmlToken::ClosingTag { name, span }
-                        if name == parent_element.__element.borrow().name =>
-                    {
-                        parent_element.__element.borrow_mut().location.close_tag = Some(span);
+                    HtmlToken::ClosingTag { name, span } if &name == parent_element.tag_name() => {
+                        parent_element.element().location.close_tag = Some(span);
                         break;
                     }
                     _ => match self.parse_node(token) {
-                        Ok(node) => parent_element.__element.borrow_mut().child_nodes.push(node),
+                        Ok(node) => parent_element.element().child_nodes.push(node),
                         Err(err) => self.errors.push(err),
                     },
                 },

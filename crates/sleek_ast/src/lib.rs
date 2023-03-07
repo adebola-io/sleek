@@ -12,7 +12,7 @@ mod tests;
 mod token;
 mod tree;
 
-pub use element::*;
+pub use element::{AttributeData, ElementRef};
 pub use event::*;
 pub use html_node::*;
 pub use query::Query;

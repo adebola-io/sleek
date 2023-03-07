@@ -3,7 +3,7 @@ mod tests {
 
     use sleek_utils::Node;
 
-    use crate::{Element, ElementRef, HtmlTag as Tag, Query};
+    use crate::{ElementRef, HtmlTag as Tag, Query};
 
     #[test]
     fn it_parses_class_selector() {
@@ -126,7 +126,7 @@ mod tests {
     fn it_updates_class_list() {
         let mut ref_1 = ElementRef::from(Tag::Div);
         ref_1.set_attribute("class", "box blue");
-        assert_eq!(ref_1.class_list(), ["box", "blue"])
+        assert_eq!(ref_1.class_list(), &["box", "blue"])
     }
 
     #[test]
@@ -175,8 +175,7 @@ mod tests {
 
     #[test]
     fn it_tests_element_ref_equality() {
-        let element = Element::new(Tag::Div);
-        let ref_1 = ElementRef::over(element);
+        let ref_1 = ElementRef::new("hello");
         let ref_2 = ref_1.clone();
         assert_eq!(ref_1, ref_2);
     }
