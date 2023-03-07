@@ -1,5 +1,7 @@
 use sleek_utils::QueueIterator;
 
+use crate::AttributeQuoteType as QuoteType;
+
 use super::SelectorStore;
 
 #[derive(Debug)]
@@ -28,8 +30,7 @@ pub enum Emit {
     Id,
     Class,
     Universal,
-    AttribValue,
-    AttribName,
+    Attribute,
 }
 
 pub enum Relation {
@@ -72,7 +73,7 @@ pub fn parse_selector(selector: &str) -> Result<SelectorStore, SelectorError> {
                     store.emit(Emit::Class)?;
                     state = State::PossibleNext;
                 }
-                Some(ch @ ('[' | '.' | ':' | '#')) => {
+                Some(ch @ ('[' | '.' | ':' | '#' | ',')) => {
                     // Push parsed data.
                     store.emit(Emit::Class)?;
                     state = State::Start;
@@ -80,12 +81,8 @@ pub fn parse_selector(selector: &str) -> Result<SelectorStore, SelectorError> {
                 }
                 Some(ch) => store.collect(ch),
                 None => {
-                    if !store.has_data {
-                        Err(SelectorError::InvalidSelector)?;
-                    } else {
-                        store.emit(Emit::Class)?;
-                        break;
-                    }
+                    store.emit(Emit::Class)?;
+                    break;
                 }
             },
             // After a * pattern.
@@ -96,7 +93,7 @@ pub fn parse_selector(selector: &str) -> Result<SelectorStore, SelectorError> {
                     Some('\t' | '\n' | '\x0C' | ' ' | '\r') => {
                         state = State::PossibleNext;
                     }
-                    Some(ch @ ('[' | '.' | ':' | '#')) => {
+                    Some(ch @ ('[' | '.' | ':' | '#' | ',')) => {
                         state = State::Start;
                         chars.push(ch);
                     }
@@ -115,7 +112,7 @@ pub fn parse_selector(selector: &str) -> Result<SelectorStore, SelectorError> {
                     store.emit(Emit::Id)?;
                     state = State::PossibleNext;
                 }
-                Some(ch @ ('[' | '.' | ':' | '#')) => {
+                Some(ch @ ('[' | '.' | ':' | '#' | ',')) => {
                     // Push parsed data.
                     store.emit(Emit::Id)?;
                     state = State::Start;
@@ -129,44 +126,65 @@ pub fn parse_selector(selector: &str) -> Result<SelectorStore, SelectorError> {
             },
             // Expecting an attribute name. After a [
             State::AttributeName => match chars.next() {
-                Some('\t' | '\n' | '\x0C' | ' ' | '\r') | None => {
+                Some('\t' | '\n' | '\x0C' | ' ' | '\r' | '[' | '.' | ':' | '#' | ',') | None => {
                     Err(SelectorError::InvalidSelector)?
                 }
-                Some('=') => {
-                    store.emit(Emit::AttribName)?;
-                    state = State::AttributeValue;
-                }
-                Some(ch @ ('[' | '.' | ':' | '#')) => {
-                    // Push parsed data.
-                    store.emit(Emit::AttribName)?;
-                    state = State::Start;
-                    chars.push(ch);
-                }
+                Some('=') => state = State::AttributeValue,
                 Some(']') => {
-                    store.emit(Emit::AttribName)?;
+                    store.emit(Emit::Attribute)?;
                     state = State::PossibleEnd;
                 }
                 Some(ch) => store.collect(ch),
             },
 
             // Expecting an attribute value. After a =
-            State::AttributeValue => match chars.next() {
-                Some('\t' | '\n' | '\x0C' | ' ' | '\r') => {}
-                Some(']') => {
-                    store.emit(Emit::AttribValue)?;
-                    state = State::PossibleEnd;
-                }
-                Some(ch) => store.collect(ch),
-                None => Err(SelectorError::InvalidSelector)?,
-            },
+            State::AttributeValue => {
+                let mut quote_type = QuoteType::None;
 
+                match chars.next() {
+                    Some('\'') => quote_type = QuoteType::Single,
+                    Some('"') => quote_type = QuoteType::Double,
+                    Some(ch) => {
+                        if ch == '<' {
+                            Err(SelectorError::InvalidSelector)?
+                        }
+                        chars.push(ch);
+                    }
+                    None => Err(SelectorError::InvalidSelector)?,
+                }
+
+                loop {
+                    match (&quote_type, chars.next()) {
+                        (QuoteType::Single, Some('\'')) | (QuoteType::Double, Some('"')) => break,
+                        (_, Some(ch)) => {
+                            if quote_type == QuoteType::None {
+                                if ch == ']' {
+                                    chars.push(ch);
+                                } else if matches!(ch, '>' | '/') || ch.is_whitespace() {
+                                    Err(SelectorError::InvalidSelector)?
+                                }
+                            }
+                            store.collect_2(ch);
+                        }
+                        (_, None) => Err(SelectorError::InvalidSelector)?,
+                    }
+                }
+
+                chars.next_while(|ch| ch.is_whitespace());
+
+                match chars.next() {
+                    Some(']') => store.emit(Emit::Attribute)?,
+                    _ => Err(SelectorError::InvalidSelector)?,
+                }
+                state = State::PossibleEnd;
+            }
             // Parsing a tagname. After the first character in the name.
             State::TagName => match chars.next() {
                 Some('\t' | '\n' | '\x0C' | ' ' | '\r') => {
                     store.emit(Emit::Tag)?;
                     state = State::PossibleNext;
                 }
-                Some(ch @ ('[' | '.' | ':' | '#')) => {
+                Some(ch @ ('[' | '.' | ':' | '#' | ',')) => {
                     // Push parsed data.
                     store.emit(Emit::Tag)?;
                     state = State::Start;
@@ -182,7 +200,7 @@ pub fn parse_selector(selector: &str) -> Result<SelectorStore, SelectorError> {
 
             // Expecting the end of input.
             State::PossibleEnd => match chars.next() {
-                Some(ch @ ('[' | '.' | ':' | '#')) => {
+                Some(ch @ ('[' | '.' | ':' | '#' | ',')) => {
                     state = State::Start;
                     chars.push(ch);
                 }
@@ -196,7 +214,9 @@ pub fn parse_selector(selector: &str) -> Result<SelectorStore, SelectorError> {
 
             // Expecting a possible decendant selector.
             State::PossibleNext => match chars.next() {
-                Some('\t' | '\n' | '\x0C' | ' ' | '\r') => {}
+                Some('\t' | '\n' | '\x0C' | ' ' | '\r') => {
+                    chars.next_while(|ch| ch.is_whitespace())
+                }
                 Some('>') => {
                     store.shift(Relation::Child);
                     state = State::CompulsoryNext;

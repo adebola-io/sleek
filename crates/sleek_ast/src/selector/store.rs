@@ -8,9 +8,9 @@ use super::{
 };
 
 pub struct SelectorStore {
-    pub selectors: Vec<Selector>,
-    pub has_data: bool,
-    cache: String,
+    pub(crate) selectors: Vec<Selector>,
+    pub(crate) has_data: bool,
+    pub(crate) cache: [String; 2],
 }
 
 impl SelectorStore {
@@ -18,24 +18,13 @@ impl SelectorStore {
     pub fn new() -> Self {
         SelectorStore {
             selectors: vec![Selector::new()],
-            cache: String::new(),
+            cache: [String::new(), String::new()],
             has_data: false,
         }
     }
     /// Returns a reference to the main selector in the store.
     pub fn host(&self) -> &Selector {
         &self.selectors[0]
-    }
-    /// Adds an attribute value to the host selector.
-    pub fn emit_attribute_value(&mut self) -> Result<(), SelectorError> {
-        if !self.has_data {
-            return Err(SelectorError::InvalidSelector);
-        }
-        if let Some(SelectorPattern::Attribute(_, value)) = self.selectors[0].patterns.last_mut() {
-            value.replace(take(&mut self.cache));
-        }
-        self.has_data = false;
-        Ok(())
     }
     /// Add a new selector.
     pub fn emit(&mut self, event: Emit) -> Result<(), SelectorError> {
@@ -44,13 +33,15 @@ impl SelectorStore {
             return Err(SelectorError::InvalidSelector);
         }
 
+        let data = take(&mut self.cache[0]);
+
         // Confirm selector type.
         let pattern = match event {
             // Creates a tag pattern.
-            Emit::Tag => SelectorPattern::Tag(HtmlTag::new(take(&mut self.cache))),
+            Emit::Tag => SelectorPattern::Tag(HtmlTag::new(data)),
             // Creates an #id pattern.
             Emit::Id => {
-                let would_be_pattern = SelectorPattern::Id(take(&mut self.cache));
+                let would_be_pattern = SelectorPattern::Id(data);
                 // Prevent id clashes.
                 if self.host().patterns.contains(&would_be_pattern) {
                     Err(SelectorError::MultipleIds)?
@@ -58,13 +49,18 @@ impl SelectorStore {
                 would_be_pattern
             }
             // Creates a .class pattern.
-            Emit::Class => SelectorPattern::Class(take(&mut self.cache)),
+            Emit::Class => SelectorPattern::Class(data),
             // Creates a * class pattern.
             Emit::Universal => SelectorPattern::Universal,
             // Creates an [attribute] pattern.
-            Emit::AttribName => SelectorPattern::Attribute(take(&mut self.cache), None),
-            // Creates a [attribute=value] pattern.
-            _ => unreachable!(),
+            Emit::Attribute => SelectorPattern::Attribute(
+                data,
+                if self.cache[1].is_empty() {
+                    None
+                } else {
+                    Some(take(&mut self.cache[1]))
+                },
+            ),
         };
 
         // Check previous selector for relation.
@@ -84,7 +80,13 @@ impl SelectorStore {
         if !self.has_data {
             self.has_data = true;
         }
-        self.cache.push(ch);
+        self.cache[0].push(ch);
+    }
+    pub fn collect_2(&mut self, ch: char) {
+        if !self.has_data {
+            self.has_data = true;
+        }
+        self.cache[1].push(ch);
     }
     /// Creates a new host selector with a relation to the current host selector.
     pub fn shift(&mut self, relation: Relation) {

@@ -46,7 +46,7 @@ mod tests {
 
         assert!(button.matches("button.clickable[darkmode]"));
         assert!(button.matches("[style]"));
-        // assert!(button.matches("[title=\"Click Me\"]"))
+        assert!(button.matches("[title=\"Click Me\"]"))
     }
 
     #[test]
