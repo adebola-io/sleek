@@ -35,6 +35,16 @@ pub enum HtmlToken {
     },
 }
 
+impl HtmlToken {
+    /// Returns `true` if the html token is [`EOF`].
+    ///
+    /// [`EOF`]: HtmlToken::EOF
+    #[must_use]
+    pub fn is_eof(&self) -> bool {
+        matches!(self, Self::EOF { .. })
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct HtmlAttribute {
     pub key: String,

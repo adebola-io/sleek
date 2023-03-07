@@ -1,3 +1,6 @@
+#![allow(incomplete_features)]
+#![feature(return_position_impl_trait_in_trait)]
+
 mod high_order_iterator;
 mod matrix_iterator;
 mod node;

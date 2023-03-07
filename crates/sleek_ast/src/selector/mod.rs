@@ -24,12 +24,12 @@ impl Selector {
                 SelectorPattern::Universal => {
                     // All elements match.
                 }
-                SelectorPattern::Tag(tag) if &element_ref.element.borrow().name != tag => {
+                SelectorPattern::Tag(tag) if &element_ref.__element.borrow().name != tag => {
                     return false;
                 }
                 SelectorPattern::Class(class_name)
                     if !element_ref
-                        .element
+                        .__element
                         .borrow()
                         .class_list
                         .borrow()
@@ -114,7 +114,7 @@ impl Selector {
                             if index == 0 {
                                 return false;
                             }
-                            match parent_ref.element.borrow().child_nodes[index - 1]
+                            match parent_ref.__element.borrow().child_nodes[index - 1]
                                 .as_element_ref()
                             {
                                 Some(adjacent_ref) => {
@@ -136,8 +136,7 @@ impl Selector {
                         Some(parent_ref) => {
                             let mut match_found = false;
                             for sibling_ref in parent_ref.children() {
-                                if &sibling_ref != element_ref && relation[0].compare(&sibling_ref)
-                                {
+                                if sibling_ref != element_ref && relation[0].compare(&sibling_ref) {
                                     match_found = true;
                                     break;
                                 }

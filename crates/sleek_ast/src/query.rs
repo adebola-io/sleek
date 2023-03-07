@@ -2,70 +2,75 @@ use sleek_utils::Node;
 
 use super::{ElementRef, HtmlTag};
 
-/// Trait for query selection and traversal using class names, ids and tags.
-pub trait Query: Node<ElementRef> {
+/// This trait provides functionality for query selection for element trees and element themselves. It allows traversal using selectors, class names, ids and tags.
+pub trait Query<'a>: Node<'a, ElementRef> {
     /// Traverse tree and find the first element that matches a selector, if it exists.
-    fn query_selector(&self, selector: &str) -> Option<ElementRef> {
-        let mut selector_match = None;
+    fn query_selector(&'a self, selector: &str) -> Option<ElementRef> {
         for reference in self.children() {
             if reference.matches(selector) {
-                selector_match = Some(reference.clone());
-                break;
-            } else {
-                selector_match = reference.query_selector(selector);
-                if selector_match.is_some() {
-                    break;
-                }
+                return Some(reference.clone());
+            }
+            let selector_match = reference.query_selector(selector);
+            if selector_match.is_some() {
+                return selector_match;
             }
         }
-        selector_match
+        None
     }
     /// Traverse tree and find all the elements that matches a selector.
-    fn query_selector_all(&self, selector: &str) -> Vec<ElementRef> {
+    fn query_selector_all(&'a self, selector: &str) -> Vec<&ElementRef> {
         let mut matches = vec![];
         for reference in self.children() {
             if reference.matches(selector) {
-                matches.push(reference.clone())
-            } else {
+                matches.push(reference);
+            }
+            if reference.has_children() {
                 matches.append(&mut reference.query_selector_all(selector));
             }
         }
         matches
     }
-    fn get_elements_by_class_name(&self, class_name: &str) -> Vec<ElementRef> {
+    /// Traverse element or tree and return all elements that have a particular class.
+    fn get_elements_by_class_name(&'a self, class_name: &str) -> Vec<&ElementRef> {
         let mut matches = vec![];
         for child in self.children() {
             let child_class_name = child.class_name();
-            let list = child_class_name.split(' ').collect::<Vec<_>>();
-            if list.contains(&class_name) {
-                matches.push(child.clone())
-            } else {
+            let list = child_class_name.split_whitespace();
+
+            for child_class_list_item in list {
+                if child_class_list_item == class_name {
+                    matches.push(child);
+                    break;
+                }
+            }
+
+            if child.has_children() {
                 matches.append(&mut child.get_elements_by_class_name(class_name));
             }
         }
         matches
     }
-    fn get_element_by_id(&self, id: &str) -> Option<ElementRef> {
-        let mut id_match = None;
+    /// Return the first element in the tree/subtree that has a specified id, if it exists.
+    fn get_element_by_id(&'a self, id: &str) -> Option<&ElementRef> {
         for reference in self.children() {
             if let Some(_id) = reference.id() && _id == id {
-                id_match = Some(reference.clone());
-                break;
-            } else {
-                id_match = reference.get_element_by_id(id);
-                if id_match.is_some() {
-                    break;
-                }
+                return Some(reference);
+            }
+            let id_match = reference.get_element_by_id(id);
+            if id_match.is_some() {
+                return id_match;
             }
         }
-        id_match
+        None
     }
-    fn get_elements_by_tag_name(&self, tag: &HtmlTag) -> Vec<ElementRef> {
+    /// Return all elements in the tree/subtree that have a specified tag name.
+    fn get_elements_by_tag_name(&'a self, tag: &HtmlTag) -> Vec<&ElementRef> {
         let mut matches = vec![];
         for child in self.children() {
-            if &child.element.borrow().name == tag {
-                matches.push(child.clone())
-            } else {
+            if &child.__element.borrow().name == tag {
+                matches.push(child);
+            }
+            if child.has_children() {
                 matches.append(&mut child.get_elements_by_tag_name(tag));
             }
         }

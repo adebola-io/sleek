@@ -28,7 +28,7 @@ enum Event {
     DocType(String, Option<DocTypeIdentifier>),
 }
 
-pub struct TokenizerResult {
+pub struct HtmlTokenizer {
     pub tokens: Vec<HtmlToken>,
     pub errors: Vec<HtmlParseError>,
     has_data: bool,
@@ -37,7 +37,7 @@ pub struct TokenizerResult {
     loc: [usize; 2],
 }
 
-impl TokenizerResult {
+impl HtmlTokenizer {
     /// Store a character in the cache.
     fn push(&mut self, ch: char) {
         if !self.has_data {
@@ -133,10 +133,10 @@ impl TokenizerResult {
     }
 }
 
-pub fn tokenize_html(input: &str) -> TokenizerResult {
+pub fn tokenize_html(input: &str) -> HtmlTokenizer {
     let mut iterator = QueueIterator::new(MatrixIterator::new(input.chars(), '\n'));
     let mut state = State::Data;
-    let mut store = TokenizerResult {
+    let mut store = HtmlTokenizer {
         tokens: vec![],
         errors: vec![],
         attrib_store: vec![],
@@ -278,7 +278,7 @@ pub fn tokenize_html(input: &str) -> TokenizerResult {
                         state = State::Data;
                     }
                 }
-                Some(ch) if ch.is_ascii_alphanumeric() => {
+                Some(ch) if ch.is_ascii_alphanumeric() || ch == '-' => {
                     // Tags cannot start with numeric values. Reparse the tag as plain text.
                     if store.empty() && ch.is_numeric() {
                         store.error(ErrorType::UnexpectedCharacter(ch), &iterator);
@@ -286,7 +286,7 @@ pub fn tokenize_html(input: &str) -> TokenizerResult {
                         store.push(ch);
                         state = State::Data;
                     } else {
-                        store.push(ch);
+                        store.push(ch.to_ascii_lowercase());
                     }
                 }
                 Some(ch) if ch.is_whitespace() => {
@@ -393,6 +393,7 @@ pub fn tokenize_html(input: &str) -> TokenizerResult {
                         // End of tag.
                         Some(ch @ ('>' | '/')) if quote_type == QuoteType::None => {
                             iterator.push(ch);
+                            break;
                         }
                         Some(ch) => store.push_attr_value(ch),
                         None => ended = true,
@@ -415,7 +416,7 @@ pub fn tokenize_html(input: &str) -> TokenizerResult {
                         state = State::Data;
                     }
                 }
-                Some(ch) if ch.is_ascii_alphanumeric() => {
+                Some(ch) if ch.is_ascii_alphanumeric() || ch == '-' => {
                     // closing tags cannot start with numbers. Reparse the tag as a bogus comment.
                     if store.empty() && ch.is_numeric() {
                         store.error(ErrorType::UnexpectedCharacter(ch), &iterator);
@@ -570,6 +571,10 @@ pub fn tokenize_html(input: &str) -> TokenizerResult {
             }
         }
     }
+
+    store.tokens.push(HtmlToken::EOF {
+        location: iterator.inner().locus(),
+    });
 
     store
 }

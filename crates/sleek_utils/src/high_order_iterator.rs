@@ -1,9 +1,9 @@
 /// Defines an interface for iterators that wrap around other iterators.
-pub trait HigherOrderIterator<'a, T: Iterator>: Iterator {
+pub trait HigherOrderIterator<T: Iterator>: Iterator {
     fn inner(&self) -> &T;
     fn inner_mut(&mut self) -> &mut T;
     /// Collect the next n values in the iteration.
-    fn collect_next<B>(&'a mut self, index: usize) -> B
+    fn collect_next<B>(&mut self, index: usize) -> B
     where
         B: FromIterator<Self::Item>,
         Self: Sized,

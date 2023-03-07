@@ -170,7 +170,7 @@ where
     }
 }
 
-impl<I> HigherOrderIterator<'_, I> for MatrixIterator<I>
+impl<I> HigherOrderIterator<I> for MatrixIterator<I>
 where
     I: Iterator,
     I::Item: PartialEq,

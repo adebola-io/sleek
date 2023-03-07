@@ -182,7 +182,7 @@ where
     }
 }
 
-impl<I> HigherOrderIterator<'_, I> for QueueIterator<I>
+impl<I> HigherOrderIterator<I> for QueueIterator<I>
 where
     I: Iterator,
 {

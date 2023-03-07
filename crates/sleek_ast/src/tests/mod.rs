@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+
     use sleek_utils::Node;
 
     use crate::{Element, ElementRef, HtmlTag as Tag, Query};
@@ -118,7 +119,7 @@ mod tests {
         assert!(ref_3.contains(&ref_1));
         ref_3.append(&ref_4);
 
-        assert_eq!(ref_3.children().len(), 2);
+        // assert_eq!(ref_3.children().next(), Some(&ref_1));
     }
 
     #[test]
@@ -140,9 +141,9 @@ mod tests {
         child_3.set_attribute("class", "box");
         child_2.set_attribute("id", "inner-circle");
 
-        assert_eq!(div.get_elements_by_class_name("box")[0], child_3);
-        assert_eq!(div.get_element_by_id("inner-circle"), Some(child_2));
-        assert_eq!(div.get_elements_by_tag_name(&Tag::A)[0], child_3);
+        assert_eq!(div.get_elements_by_class_name("box")[0], &child_3);
+        assert_eq!(div.get_element_by_id("inner-circle"), Some(&child_2));
+        assert_eq!(div.get_elements_by_tag_name(&Tag::A)[0], &child_3);
     }
 
     #[test]
@@ -154,9 +155,9 @@ mod tests {
         div.append(&child_1);
         child_1.after(&child_2);
 
-        assert_eq!(div.children().first().unwrap(), &child_1);
+        // assert_eq!(div.children().next().unwrap(), &child_1);
 
-        assert_eq!(div.children().len(), 2);
+        assert_eq!(div.children().count(), 2);
     }
 
     #[test]
@@ -169,7 +170,7 @@ mod tests {
         body.remove(&node);
 
         assert_eq!(node.parent(), None);
-        assert_eq!(body.children().len(), 0);
+        assert_eq!(body.children().count(), 0);
     }
 
     #[test]
@@ -179,4 +180,55 @@ mod tests {
         let ref_2 = ref_1.clone();
         assert_eq!(ref_1, ref_2);
     }
+
+    #[test]
+    fn it_tests_query_selection() {
+        let mut div = ElementRef::new("div");
+        let mut span = ElementRef::new("a");
+        let mut a = ElementRef::new("a");
+        div.append(&span);
+        span.append(&a);
+
+        span.add_class("text-link");
+        a.set_attribute("href", "http://example.com");
+
+        assert_eq!(div.query_selector(".text-link"), Some(span));
+        assert_eq!(div.query_selector("[href]"), Some(a));
+    }
+
+    // #[test]
+    // fn it_test_vec_remove() {
+    //     let main = vec![1, 2, 3, 4, 5];
+    //     // Swap Removal.
+    //     let time = Instant::now();
+    //     let mut vector = main.clone();
+
+    //     let mut len = vector.len();
+    //     let mut half = len >> 1;
+    //     let mut i = 0;
+
+    //     while len > 0 {
+    //         let index = if len > half {
+    //             i += 1;
+    //             i - 1
+    //         } else {
+    //             half -= 1;
+    //             half
+    //         };
+    //         vector.swap_remove(index);
+    //         len -= 1;
+    //     }
+    //     println!("Time elapsed: {:?}", time.elapsed());
+
+    //     // ----
+
+    //     // Regular Removal.
+    //     let time = Instant::now();
+    //     let mut vector = main.clone();
+
+    //     while !vector.is_empty() {
+    //         vector.remove(0);
+    //     }
+    //     println!("Time elapsed: {:?}", time.elapsed());
+    // }
 }

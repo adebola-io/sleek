@@ -1,45 +1,50 @@
-use sleek_utils::{MutableCountRef, Node};
+use sleek_utils::Node;
 
 use crate::{ElementRef, HtmlNode, Query};
 
-pub struct HtmlTree {
-    nodes: MutableCountRef<Vec<HtmlNode>>,
+#[derive(Debug)]
+pub struct HtmlDocument {
+    pub nodes: Vec<HtmlNode>,
 }
 
-impl Node<ElementRef> for HtmlTree {
+impl HtmlDocument {
+    pub fn new() -> Self {
+        HtmlDocument { nodes: vec![] }
+    }
+}
+
+impl<'a> Node<'a, ElementRef> for HtmlDocument {
     fn parent(&self) -> Option<ElementRef> {
         None
     }
 
-    fn children(&self) -> Vec<ElementRef> {
-        let mut children = vec![];
-        for node in self.nodes.borrow().iter() {
-            if let Some(element_ref) = node.as_element_ref() {
-                children.push(element_ref);
-            }
-        }
-        children
+    fn children(&'a self) -> impl Iterator<Item = &ElementRef> {
+        self.nodes
+            .iter()
+            .filter(|node| node.is_element())
+            .map(|node| match node {
+                HtmlNode::Element(e) => e,
+                _ => unreachable!(),
+            })
     }
 
     fn append(&mut self, child: &ElementRef) {
-        self.nodes
-            .borrow_mut()
-            .push(HtmlNode::Element(child.clone()));
+        self.nodes.push(HtmlNode::Element(child.clone()));
     }
 
     fn prepend(&mut self, child: &ElementRef) {
-        self.nodes
-            .borrow_mut()
-            .insert(0, HtmlNode::Element(child.clone()));
+        self.nodes.insert(0, HtmlNode::Element(child.clone()));
+    }
+
+    fn has_children(&self) -> bool {
+        self.nodes.len() > 0
     }
 
     fn remove(&mut self, node: &ElementRef) {
-        self.nodes
-            .borrow_mut()
-            .retain(|n| match &n.as_element_ref() {
-                Some(r) => r != node,
-                None => true,
-            });
+        self.nodes.retain(|n| match &n.as_element_ref() {
+            Some(r) => r != node,
+            None => true,
+        });
     }
 
     fn after(&mut self, _: &ElementRef) {
@@ -47,4 +52,4 @@ impl Node<ElementRef> for HtmlTree {
     }
 }
 
-impl Query for HtmlTree {}
+impl Query<'_> for HtmlDocument {}

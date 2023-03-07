@@ -1,13 +1,21 @@
 #![allow(unused)]
 
+use std::fmt::Debug;
+
 use sleek_utils::MutableCountRef;
 
 use super::ElementRef;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Span {
     pub start: [usize; 2],
     pub end: [usize; 2],
+}
+
+impl Debug for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("[{:?}, {:?}]", self.start, self.end))
+    }
 }
 
 impl Span {
@@ -19,8 +27,8 @@ impl Span {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ElementSpan {
-    open_tag: Span,
-    close_tag: Span,
+    pub open_tag: Span,
+    pub close_tag: Option<Span>,
 }
 
 impl ElementSpan {
@@ -30,10 +38,7 @@ impl ElementSpan {
                 start: [0, 0],
                 end: [0, 0],
             },
-            close_tag: Span {
-                start: [0, 0],
-                end: [0, 0],
-            },
+            close_tag: None,
         }
     }
 }
@@ -47,18 +52,12 @@ pub struct HtmlDocType {
 #[derive(Debug)]
 pub struct HtmlTextNode {
     pub content: String,
-    _parent: Option<usize>,
-    pub location: ElementSpan,
+    pub span: Span,
 }
 
 #[derive(Debug)]
 pub struct TextRef {
     pub text: MutableCountRef<HtmlTextNode>,
-}
-
-#[derive(Debug)]
-pub struct CommentRef {
-    comment: MutableCountRef<HtmlComment>,
 }
 
 #[derive(Debug)]
@@ -69,16 +68,25 @@ pub struct DocRef {
 #[derive(Debug)]
 pub struct HtmlComment {
     pub content: String,
-    _parent: Option<usize>,
-    pub location: ElementSpan,
+    pub span: Span,
 }
 
-#[derive(Debug)]
 pub enum HtmlNode {
     DocType(DocRef),
     Text(TextRef),
     Element(ElementRef),
-    Comment(CommentRef),
+    Comment(HtmlComment),
+}
+
+impl Debug for HtmlNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::DocType(arg0) => arg0.fmt(f),
+            Self::Text(arg0) => arg0.fmt(f),
+            Self::Element(arg0) => arg0.fmt(f),
+            Self::Comment(arg0) => arg0.fmt(f),
+        }
+    }
 }
 
 impl HtmlNode {
@@ -87,5 +95,13 @@ impl HtmlNode {
             HtmlNode::Element(el) => Some(el.clone()),
             _ => None,
         }
+    }
+
+    /// Returns `true` if the html node is [`Element`].
+    ///
+    /// [`Element`]: HtmlNode::Element
+    #[must_use]
+    pub fn is_element(&self) -> bool {
+        matches!(self, Self::Element(..))
     }
 }
