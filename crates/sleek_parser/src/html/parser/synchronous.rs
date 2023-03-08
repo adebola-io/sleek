@@ -1,17 +1,22 @@
+use std::str::Chars;
 use std::{cell::RefCell, mem::take, rc::Rc};
 
 use sleek_ast::{
     ElementRef, HtmlAttribute, HtmlComment, HtmlDocument, HtmlNode, HtmlTag, HtmlTextNode,
     HtmlToken, Span, TextRef,
 };
+use sleek_utils::QueueMatrix;
 
 use crate::HtmlParseError;
 
-use super::{error::HtmlParseErrorType, tokenize::HtmlTokenizer};
+use crate::html::tokenizer::tokenize;
+use crate::html::{error::HtmlParseErrorType, tokenizer::TokenStore};
+
+use super::HtmlParseResult;
 
 type FallibleStep<T> = Result<T, HtmlParseError>;
 
-pub struct HtmlParser {
+pub struct SyncHtmlParser {
     tokens: Vec<HtmlToken>,
     index: usize,
     /// The parser removes tokens from the beginning of the token array when creating a tree.
@@ -20,24 +25,20 @@ pub struct HtmlParser {
     errors: Vec<HtmlParseError>,
 }
 
-/// The result of the Html parsing process.
-/// The parser tries to produce a valid HTML DOM Tree regardless of how wrangled or broken the input string is.
-/// The resulting tree, as well as errors encountered, are stored on this struct.
-#[derive(Debug)]
-pub struct HtmlParseResult {
-    pub tree: HtmlDocument,
-    pub errors: Vec<HtmlParseError>,
-}
-
-impl HtmlParser {
+impl SyncHtmlParser {
     /// Analyse an array of tokens into a document tree.
-    pub fn parse(mut tokenizer: HtmlTokenizer) -> HtmlParseResult {
-        let rev_separator = tokenizer.tokens.len() >> 1;
+    pub fn parse(
+        mut token_store: TokenStore,
+        mut iterator: QueueMatrix<Chars<'_>>,
+    ) -> HtmlParseResult {
+        tokenize(&mut token_store, &mut iterator);
+
+        let rev_separator = token_store.tokens.len() >> 1;
         let mut parser = Self {
-            tokens: take(&mut tokenizer.tokens),
+            tokens: take(&mut token_store.tokens),
             index: 0,
             rev_separator,
-            errors: take(&mut tokenizer.errors),
+            errors: take(&mut token_store.errors),
         };
 
         let mut nodes = vec![];
@@ -155,7 +156,7 @@ impl HtmlParser {
     }
 }
 
-impl Iterator for HtmlParser {
+impl Iterator for SyncHtmlParser {
     type Item = HtmlToken;
 
     fn next(&mut self) -> Option<Self::Item> {

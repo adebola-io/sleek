@@ -1,16 +1,14 @@
-use std::{mem::take, str::Chars};
+use std::str::Chars;
 
-use sleek_ast::{
-    AttributeQuoteType as QuoteType, DocTypeIdentifier, HtmlAttribute, HtmlTag, HtmlToken, Span,
-};
-use sleek_utils::{HigherOrderIterator, MatrixIterator, QueueIterator};
+use sleek_utils::{HigherOrderIterator, QueueMatrix};
 
-use crate::HtmlParseError;
+use sleek_ast::{AttributeQuoteType as QuoteType, DocTypeIdentifier, HtmlToken};
 
-use super::error::HtmlParseErrorType as ErrorType;
+use super::store::{Event, TokenStore};
+use crate::html::HtmlParseErrorType as ErrorType;
 
 #[derive(Debug)]
-enum State {
+pub enum State {
     Data,
     OpeningTag,
     ClosingTag,
@@ -20,158 +18,33 @@ enum State {
     AttributeValue,
     Doctype,
 }
-enum Event {
-    Text,
-    Close,
-    Comment,
-    OpenerTag(bool),
-    DocType(String, Option<DocTypeIdentifier>),
-}
 
-pub struct HtmlTokenizer {
-    pub tokens: Vec<HtmlToken>,
-    pub errors: Vec<HtmlParseError>,
-    has_data: bool,
-    attrib_store: Vec<HtmlAttribute>,
-    cache: (String, String, Option<String>),
-    loc: [usize; 2],
-}
-
-impl HtmlTokenizer {
-    /// Store a character in the cache.
-    fn push(&mut self, ch: char) {
-        if !self.has_data {
-            self.has_data = true
-        };
-        self.cache.0.push(ch);
-    }
-    fn push_str(&mut self, st: &str) {
-        self.cache.0.push_str(st);
-    }
-    /// Push a character into an attribute name.
-    fn push_attr_name(&mut self, ch: char) {
-        self.cache.1.push(ch);
-    }
-    /// Push a character into the attribute value, if it exists, or create a new attribute value to push into if it doesn't
-    fn push_attr_value(&mut self, ch: char) {
-        match &mut self.cache.2 {
-            Some(string) => string.push(ch),
-            None => {
-                let mut string = String::new();
-                string.push(ch);
-                self.cache.2 = Some(string);
-            }
-        }
-    }
-    fn collect_attribute(&mut self, quote_type: QuoteType) {
-        self.attrib_store.push(HtmlAttribute {
-            key: take(&mut self.cache.1),
-            value: self.cache.2.take(),
-            quote_type,
-        })
-    }
-    /// Push a token to the token list.
-    fn emit(&mut self, event: Event, iterator: &QueueIterator<MatrixIterator<Chars<'_>>>) {
-        let content = take(&mut self.cache.0);
-        self.has_data = false;
-        let mut span = Span::over(self.loc, iterator.inner().locus());
-
-        let token = match event {
-            Event::Text => {
-                // Ignore empty text nodes.
-                if content.find(|ch: char| !ch.is_whitespace()).is_none() {
-                    return;
-                }
-                span.end[1] -= 1;
-                HtmlToken::Text { content, span }
-            }
-            Event::OpenerTag(self_closing) => {
-                let attributes = take(&mut self.attrib_store);
-                HtmlToken::OpeningTag {
-                    name: HtmlTag::new(content),
-                    attributes,
-                    span,
-                    self_closing,
-                }
-            }
-            Event::Close => HtmlToken::ClosingTag {
-                name: HtmlTag::new(content),
-                span,
-            },
-            Event::Comment => HtmlToken::Comment { content, span },
-            Event::DocType(root, identifier) => HtmlToken::DocType { root, identifier },
-        };
-
-        self.tokens.push(token);
-    }
-    /// Adds an error.
-    fn error(
-        &mut self,
-        error_type: ErrorType,
-        iterator: &QueueIterator<MatrixIterator<Chars<'_>>>,
-    ) {
-        let location = iterator.inner().locus();
-        self.errors.push(HtmlParseError {
-            error_type,
-            location,
-        });
-    }
-    /// Sets the position of the iterator to the start of something.
-    fn set_start(&mut self, iterator: &QueueIterator<MatrixIterator<Chars<'_>>>) {
-        self.loc = iterator.inner().locus();
-        self.loc[1] -= 1;
-    }
-    /// Checks if the store contains data in its cache.
-    fn empty(&self) -> bool {
-        !self.has_data
-    }
-    /// Removes data from the store cache.
-    fn clear(&mut self) {
-        self.cache.0.clear();
-        self.cache.1.clear();
-        self.cache.2 = None;
-    }
-}
-
-pub fn tokenize_html(input: &str) -> HtmlTokenizer {
-    let mut iterator = QueueIterator::new(MatrixIterator::new(input.chars(), '\n'));
+/// Tokenize an input string.
+pub fn tokenize(token_store: &mut TokenStore, iterator: &mut QueueMatrix<Chars<'_>>) {
+    // Starting state.
     let mut state = State::Data;
-    let mut store = HtmlTokenizer {
-        tokens: vec![],
-        errors: vec![],
-        attrib_store: vec![],
-        has_data: false,
-        loc: [0, 0],
-        cache: (String::new(), String::new(), None),
-    };
-
-    // iterator.on_push(Rc::new(|inner| {
-    //     println!("Shifting from {:?}", inner.locus());
-    //     inner.left();
-    //     println!("Shifted to {:?}", inner.locus());
-    // }));
 
     loop {
         match state {
             // Parse regular html text, without any formatting.
             State::Data => match iterator.next() {
                 Some('<') => {
-                    if !store.empty() {
-                        store.emit(Event::Text, &iterator);
+                    if !token_store.empty() {
+                        token_store.emit(Event::Text, iterator);
                     }
-                    store.set_start(&iterator);
+                    token_store.set_start(iterator);
                     state = State::OpeningTag
                 }
                 Some(ch) => {
                     // Collect the starting point of the text node.
-                    if store.empty() {
-                        store.set_start(&iterator)
+                    if token_store.empty() {
+                        token_store.set_start(iterator)
                     }
-                    store.push(ch)
+                    token_store.push(ch)
                 }
                 None => {
-                    if !store.empty() {
-                        store.emit(Event::Text, &iterator);
+                    if !token_store.empty() {
+                        token_store.emit(Event::Text, iterator);
                     }
                     break;
                 }
@@ -180,7 +53,7 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
             State::OpeningTag => match iterator.next() {
                 Some('/') => {
                     // There is nothing between < and /. Parse as closing tag.
-                    if store.empty() {
+                    if token_store.empty() {
                         state = State::ClosingTag
                     } else {
                         // Open tag is possibly self-closing.
@@ -190,21 +63,21 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
                                 Some(ch) if ch.is_whitespace() => {}
                                 // tag is self-closing.
                                 Some('>') => {
-                                    store.emit(Event::OpenerTag(true), &iterator);
+                                    token_store.emit(Event::OpenerTag(true), iterator);
                                     state = State::Data;
                                     break;
                                 }
                                 // Parse error. Scan character again as attribute.
                                 Some(ch) => {
-                                    store.error(ErrorType::UnexpectedCharacter(ch), &iterator);
+                                    token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
                                     iterator.push(ch);
                                     state = State::AttributeName;
                                     break;
                                 }
                                 // Tag was unclosed.
                                 None => {
-                                    store.clear();
-                                    store.error(ErrorType::UnexpectedEndOfInput, &iterator);
+                                    token_store.clear();
+                                    token_store.error(ErrorType::UnexpectedEndOfInput, iterator);
                                     state = State::Data;
                                     break;
                                 }
@@ -213,7 +86,7 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
                     }
                 }
                 Some('!') => {
-                    if store.empty() {
+                    if token_store.empty() {
                         // Comment or Doctype tag.
                         // Collect next two characters and check if they match commment start (--).
                         match iterator.next() {
@@ -223,22 +96,22 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
                                 Some('-') => state = State::Comment,
                                 // Any other character. Take first - as part of the comment.
                                 Some(ch) => {
-                                    store.push('-');
-                                    store.push(ch);
-                                    store.error(ErrorType::UnexpectedCharacter(ch), &iterator);
+                                    token_store.push('-');
+                                    token_store.push(ch);
+                                    token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
                                     state = State::Comment
                                 }
                                 None => {
-                                    store.push('-');
-                                    store.emit(Event::Comment, &iterator);
-                                    store.error(ErrorType::UnexpectedEndOfInput, &iterator);
+                                    token_store.push('-');
+                                    token_store.emit(Event::Comment, iterator);
+                                    token_store.error(ErrorType::UnexpectedEndOfInput, iterator);
                                     break;
                                 }
                             },
                             // Default to comment.
                             None => {
-                                store.emit(Event::Comment, &iterator);
-                                store.error(ErrorType::UnexpectedEndOfInput, &iterator);
+                                token_store.emit(Event::Comment, iterator);
+                                token_store.error(ErrorType::UnexpectedEndOfInput, iterator);
                                 break;
                             }
                             // Check for !doctype
@@ -248,53 +121,53 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
                                     state = State::Doctype;
                                 } else {
                                     println!("{value}");
-                                    store.push(ch);
-                                    store.push_str(value.as_str());
-                                    store.error(ErrorType::UnexpectedCharacter(ch), &iterator);
+                                    token_store.push(ch);
+                                    token_store.push_str(value.as_str());
+                                    token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
                                     state = State::Comment;
                                 }
                             }
                             Some(ch) => {
-                                store.push(ch);
-                                store.error(ErrorType::UnexpectedCharacter(ch), &iterator);
+                                token_store.push(ch);
+                                token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
                                 state = State::BogusComment;
                             }
                         }
                     } else {
                         // Tagnames has already started parsing.
-                        store.push('!');
+                        token_store.push('!');
                     }
                 }
                 Some('>') => {
                     // Parse <> as text.
-                    if store.empty() {
-                        store.push('<');
+                    if token_store.empty() {
+                        token_store.push('<');
                         iterator.push('>');
-                        store.error(ErrorType::UnexpectedCharacter('>'), &iterator);
+                        token_store.error(ErrorType::UnexpectedCharacter('>'), iterator);
                         state = State::Data;
                     } else {
                         // Push an opening tag with no attributes.
-                        store.emit(Event::OpenerTag(false), &iterator);
+                        token_store.emit(Event::OpenerTag(false), iterator);
                         state = State::Data;
                     }
                 }
                 Some(ch) if ch.is_ascii_alphanumeric() || ch == '-' => {
                     // Tags cannot start with numeric values. Reparse the tag as plain text.
-                    if store.empty() && ch.is_numeric() {
-                        store.error(ErrorType::UnexpectedCharacter(ch), &iterator);
-                        store.push('<');
-                        store.push(ch);
+                    if token_store.empty() && ch.is_numeric() {
+                        token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
+                        token_store.push('<');
+                        token_store.push(ch);
                         state = State::Data;
                     } else {
-                        store.push(ch.to_ascii_lowercase());
+                        token_store.push(ch.to_ascii_lowercase());
                     }
                 }
                 Some(ch) if ch.is_whitespace() => {
                     // Parse error. Expected a tagname to be present. Reparse tag as text.
-                    if store.empty() {
-                        store.push('<');
+                    if token_store.empty() {
+                        token_store.push('<');
                         iterator.push(ch);
-                        store.error(ErrorType::UnexpectedCharacter(ch), &iterator);
+                        token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
                         state = State::Data;
                     } else {
                         // Parsing an attribute. Revisit the current character as an attribute name.
@@ -305,10 +178,10 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
                 // Invalid character.
                 Some(_) => {}
                 None => {
-                    store.error(ErrorType::UnexpectedEndOfInput, &iterator);
+                    token_store.error(ErrorType::UnexpectedEndOfInput, iterator);
                     // Emit as text.
-                    store.push('<');
-                    store.emit(Event::Text, &iterator);
+                    token_store.push('<');
+                    token_store.emit(Event::Text, iterator);
                     break;
                 }
             },
@@ -344,7 +217,7 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
                             break;
                         }
                         // Push character into name.
-                        Some(ch) => store.push_attr_name(ch),
+                        Some(ch) => token_store.push_attr_name(ch),
                         // Input ends abruptly.
                         None => ended = true,
                     }
@@ -354,14 +227,14 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
                     state = State::AttributeValue;
                 } else if ended {
                     // Input ended unexpectedly.
-                    store.error(ErrorType::UnexpectedEndOfInput, &iterator);
-                    store.clear();
+                    token_store.error(ErrorType::UnexpectedEndOfInput, iterator);
+                    token_store.clear();
                     break;
                 } else {
                     // Because of nested loops, only collect attribute if there is an attribute to collect.
-                    if !store.cache.1.is_empty() {
+                    if !token_store.cache.1.is_empty() {
                         // Attribute has no value.
-                        store.collect_attribute(QuoteType::None)
+                        token_store.collect_attribute(QuoteType::None)
                     }
                 }
             }
@@ -373,13 +246,13 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
                     Some('"') => quote_type = QuoteType::Double,
                     Some(ch) => {
                         if ch == '<' {
-                            store.error(ErrorType::UnexpectedCharacter(ch), &iterator);
+                            token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
                         }
                         iterator.push(ch);
                         iterator.inner_mut().left();
                     }
                     None => {
-                        store.error(ErrorType::UnexpectedEndOfInput, &iterator);
+                        token_store.error(ErrorType::UnexpectedEndOfInput, iterator);
                         break;
                     }
                 }
@@ -395,14 +268,14 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
                             iterator.push(ch);
                             break;
                         }
-                        Some(ch) => store.push_attr_value(ch),
+                        Some(ch) => token_store.push_attr_value(ch),
                         None => ended = true,
                     }
                 }
                 if ended {
-                    store.error(ErrorType::UnexpectedEndOfInput, &iterator);
+                    token_store.error(ErrorType::UnexpectedEndOfInput, iterator);
                 } else {
-                    store.collect_attribute(quote_type);
+                    token_store.collect_attribute(quote_type);
                 }
 
                 state = State::AttributeName;
@@ -411,36 +284,36 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
             State::ClosingTag => match iterator.next() {
                 Some(ch) if ch.is_whitespace() => {
                     // tagnames must directly follow the </
-                    if store.empty() {
-                        store.error(ErrorType::ExpectedTagName, &iterator);
+                    if token_store.empty() {
+                        token_store.error(ErrorType::ExpectedTagName, iterator);
                         state = State::Data;
                     }
                 }
                 Some(ch) if ch.is_ascii_alphanumeric() || ch == '-' => {
                     // closing tags cannot start with numbers. Reparse the tag as a bogus comment.
-                    if store.empty() && ch.is_numeric() {
-                        store.error(ErrorType::UnexpectedCharacter(ch), &iterator);
+                    if token_store.empty() && ch.is_numeric() {
+                        token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
                         iterator.push(ch);
                         // Start bogus comment here.
-                        store.set_start(&iterator);
+                        token_store.set_start(iterator);
                         state = State::BogusComment;
                     } else {
                         // Collect character for html tagname.
-                        store.push(ch.to_ascii_lowercase());
+                        token_store.push(ch.to_ascii_lowercase());
                     }
                 }
                 Some('>') => {
                     // Tag was closed without any name.
-                    if store.empty() {
-                        store.error(ErrorType::ExpectedTagName, &iterator);
+                    if token_store.empty() {
+                        token_store.error(ErrorType::ExpectedTagName, iterator);
                     } else {
-                        store.emit(Event::Close, &iterator);
+                        token_store.emit(Event::Close, iterator);
                     }
                     state = State::Data
                 }
                 Some(ch) => {
                     // There was an unexpected character in the closing tag, probably an attribute.
-                    store.error(ErrorType::UnexpectedCharacter(ch), &iterator);
+                    token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
                     // Skip over the next set of characters until the >.
                     loop {
                         match iterator.next() {
@@ -454,7 +327,7 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
                     }
                 }
                 None => {
-                    store.error(ErrorType::UnexpectedEndOfInput, &iterator);
+                    token_store.error(ErrorType::UnexpectedEndOfInput, iterator);
                 }
             },
             // A comment has been opened with <!--
@@ -473,35 +346,35 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
                                 }
                                 // Any character, not a >
                                 Some(ch) => {
-                                    store.push_str("--");
-                                    store.push(ch);
+                                    token_store.push_str("--");
+                                    token_store.push(ch);
                                 }
                                 None => {
-                                    store.push_str("--");
+                                    token_store.push_str("--");
                                     break;
                                 }
                             },
                             // Any character, not a -
                             Some(ch) => {
-                                store.push('-');
-                                store.push(ch);
+                                token_store.push('-');
+                                token_store.push(ch);
                             }
                             // Comment unclosed. Retrieve - and break
                             None => {
-                                store.push('-');
+                                token_store.push('-');
                                 break;
                             }
                         },
                         // Push any character to store.
-                        Some(ch) => store.push(ch),
+                        Some(ch) => token_store.push(ch),
                         None => break,
                     }
                 }
 
                 if !is_closed {
-                    store.error(ErrorType::UnclosedComment, &iterator);
+                    token_store.error(ErrorType::UnclosedComment, iterator);
                 }
-                store.emit(Event::Comment, &iterator);
+                token_store.emit(Event::Comment, iterator);
                 state = State::Data;
             }
             // Result of a parse error. Attempt to parse tag as comment.
@@ -510,10 +383,10 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
                     match iterator.next() {
                         // Push any character to store.
                         Some('>') | None => break,
-                        Some(ch) => store.push(ch),
+                        Some(ch) => token_store.push(ch),
                     }
                 }
-                store.emit(Event::Comment, &iterator);
+                token_store.emit(Event::Comment, iterator);
                 state = State::Data;
             }
             State::Doctype => {
@@ -526,7 +399,7 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
                         // Parse error. parse anyway.
                         if !ch.is_whitespace() {
                             iterator.push(ch);
-                            store.error(ErrorType::UnexpectedCharacter(ch), &iterator);
+                            token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
                         } else {
                             // One whitespace found, Ignore rest.
                             iterator.next_while(|ch| ch.is_whitespace());
@@ -552,19 +425,19 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
                         } else if identifier_string.to_ascii_lowercase() == "public" {
                             identifier = Some(DocTypeIdentifier::Public);
                         } else {
-                            store.error(ErrorType::IndecipherableDocType, &iterator);
+                            token_store.error(ErrorType::IndecipherableDocType, iterator);
                             iterator.find(|ch| ch == &'>');
                         }
                     }
                     Some(_) => {
-                        store.error(ErrorType::IndecipherableDocType, &iterator);
+                        token_store.error(ErrorType::IndecipherableDocType, iterator);
                         iterator.find(|ch| ch == &'>');
                     }
                     None => ended = true,
                 }
-                store.emit(Event::DocType(root_element, identifier), &iterator);
+                token_store.emit(Event::DocType(root_element, identifier), iterator);
                 if ended {
-                    store.error(ErrorType::UnexpectedEndOfInput, &iterator);
+                    token_store.error(ErrorType::UnexpectedEndOfInput, iterator);
                     break;
                 }
                 state = State::Data;
@@ -572,9 +445,7 @@ pub fn tokenize_html(input: &str) -> HtmlTokenizer {
         }
     }
 
-    store.tokens.push(HtmlToken::EOF {
+    token_store.tokens.push(HtmlToken::EOF {
         location: iterator.inner().locus(),
     });
-
-    store
 }

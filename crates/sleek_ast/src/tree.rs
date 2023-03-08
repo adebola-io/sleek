@@ -2,7 +2,7 @@ use sleek_utils::Node;
 
 use crate::{ElementRef, HtmlNode, Query};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct HtmlDocument {
     pub nodes: Vec<HtmlNode>,
 }

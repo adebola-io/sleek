@@ -1,7 +1,8 @@
 use sleek_ast::HtmlTag;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum HtmlParseErrorType {
+    #[default]
     InvalidCharacter,
     UnexpectedEndOfInput,
     UnexpectedCharacter(char),
@@ -14,7 +15,7 @@ pub enum HtmlParseErrorType {
     UnexpectedCloseTag(HtmlTag),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct HtmlParseError {
     pub error_type: HtmlParseErrorType,
     pub location: [usize; 2],

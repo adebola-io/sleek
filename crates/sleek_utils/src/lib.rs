@@ -14,3 +14,4 @@ pub use node::Node;
 pub use queue_iterator::QueueIterator;
 
 pub type MutableCountRef<T> = Rc<RefCell<T>>;
+pub type QueueMatrix<T> = QueueIterator<MatrixIterator<T>>;
