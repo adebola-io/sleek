@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+   <head>
+      <meta charset="UTF-8" />
+      <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Sleek</title>
+      <style>
+         body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            background-color: rgb(37, 0, 74);
+            font-family: sans-serif;
+            font-size: 1.5rem;
+         }
+         .container {
+            animation: pulse 3000ms infinite;
+         }
+         .outline {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100px;
+            width: 100px;
+            border: 3px dashed #a769ff;
+            border-radius: 50%;
+            animation: outline 5000ms linear infinite;
+         }
+
+         .outline * {
+            position: absolute;
+            animation-duration: 5000ms;
+            animation-iteration-count: infinite;
+            animation-timing-function: linear;
+            border: 3px dashed #a769ff;
+         }
+
+         .ball {
+            position: absolute;
+            height: 30%;
+            width: 30%;
+            border-radius: 50%;
+            background-color: rgb(167, 105, 255);
+         }
+         .ball-1 {
+            transform: translateY(-200%);
+            animation-name: ball-1;
+         }
+         .ball-2 {
+            transform: translateY(170%);
+            animation-name: ball-2;
+         }
+         .square {
+            height: 50%;
+            width: 50%;
+            animation-name: square;
+         }
+         .square-2 {
+            height: 30%;
+            width: 30%;
+            animation-name: square-2;
+         }
+         @keyframes pulse {
+            50% {
+               opacity: 0.5;
+            }
+         }
+         @keyframes outline {
+            0% {
+               transform: rotate(-360deg);
+            }
+         }
+         @keyframes square {
+            0% {
+               transform: rotate(-360deg);
+            }
+         }
+         @keyframes square-2 {
+            0% {
+               transform: rotate(720deg);
+            }
+         }
+      </style>
+   </head>
+   <body>
+      <div style="margin-bottom: 2vh" class="container">
+         <div class="outline">
+            <div class="square"></div>
+            <div class="square-2"></div>
+         </div>
+      </div>
+      <span style="color: #a769ff">This site is under construction.</span>
+   </body>
+</html>

@@ -1,3 +1,4 @@
 /target
 /wait
-sleek_parser/src/html/test.html
+/crates/sleek_parser/src/html/test.html
+crates/sleek_parser/src/html/test.html
