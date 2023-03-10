@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use sleek_utils::Node;
 
-use crate::{parse_selector, AttributeQuoteType, HtmlAttribute, Span, TextRef};
+use crate::{parse_selector, AttributeQuoteType, HtmlAttribute, HtmlTextNode, Span};
 
 use super::{ElementSpan, HtmlEventListener, HtmlNode, HtmlTag, Query};
 
@@ -68,8 +68,14 @@ impl std::fmt::Debug for ElementRef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         unsafe {
             let element = &*self.__element;
-            let name = format!("{}Element", element.name.to_string().to_ascii_uppercase());
-            f.debug_struct(name.as_str())
+            let element_name = element.name.to_string();
+            let mut name_chars = element_name.chars();
+            let formatted_name = format!(
+                "{}{}Element",
+                name_chars.next().unwrap().to_ascii_uppercase(),
+                name_chars.collect::<String>()
+            );
+            f.debug_struct(formatted_name.as_str())
                 .field("attributes", &element.attributes)
                 .field("location", &element.location)
                 .field("class_list", &element.class_list)
@@ -138,9 +144,7 @@ impl ElementRef {
         let mut text_content = String::new();
         for node in &self.element().child_nodes {
             match node {
-                HtmlNode::Text(text_ref) => {
-                    text_content.push_str(text_ref.text.borrow().content.as_str())
-                }
+                HtmlNode::Text(text_node) => text_content.push_str(text_node.content.as_str()),
                 HtmlNode::Element(element_ref) => {
                     text_content.push_str(element_ref.get_text_content().as_str())
                 }
@@ -228,8 +232,8 @@ impl ElementRef {
         }
     }
     /// Appends a text node to the element.
-    pub fn append_text(&mut self, text_ref: TextRef) {
-        self.element().child_nodes.push(HtmlNode::Text(text_ref));
+    pub fn append_text(&mut self, text_node: HtmlTextNode) {
+        self.element().child_nodes.push(HtmlNode::Text(text_node));
     }
 }
 

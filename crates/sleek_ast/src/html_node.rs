@@ -56,11 +56,6 @@ pub struct HtmlTextNode {
 }
 
 #[derive(Debug)]
-pub struct TextRef {
-    pub text: MutableCountRef<HtmlTextNode>,
-}
-
-#[derive(Debug)]
 pub struct DocRef {
     doctype: MutableCountRef<HtmlDocType>,
 }
@@ -73,7 +68,7 @@ pub struct HtmlComment {
 
 pub enum HtmlNode {
     DocType(DocRef),
-    Text(TextRef),
+    Text(HtmlTextNode),
     Element(ElementRef),
     Comment(HtmlComment),
 }

@@ -1,18 +1,16 @@
-use std::str::Chars;
-use std::{cell::RefCell, mem::take, rc::Rc};
+use std::{mem::take, str::Chars};
 
 use sleek_ast::{
     ElementRef, HtmlAttribute, HtmlComment, HtmlDocument, HtmlNode, HtmlTag, HtmlTextNode,
-    HtmlToken, Span, TextRef,
+    HtmlToken, Span,
 };
 use sleek_utils::QueueMatrix;
 
-use crate::HtmlParseError;
-
-use crate::html::tokenizer::tokenize;
-use crate::html::{error::HtmlParseErrorType, tokenizer::TokenStore};
-
-use super::HtmlParseResult;
+use crate::html::{
+    error::HtmlParseErrorType,
+    tokenizer::{tokenize, TokenStore},
+    HtmlParseError, HtmlParseResult,
+};
 
 type FallibleStep<T> = Result<T, HtmlParseError>;
 
@@ -144,10 +142,7 @@ impl SyncHtmlParser {
     }
 
     fn create_text_node(&self, content: String, span: Span) -> HtmlNode {
-        let node = HtmlTextNode { content, span };
-        HtmlNode::Text(TextRef {
-            text: Rc::new(RefCell::new(node)),
-        })
+        HtmlNode::Text(HtmlTextNode { content, span })
     }
 
     fn create_comment_node(&self, content: String, span: Span) -> HtmlNode {

@@ -8,7 +8,7 @@ mod tests {
             tokenizer::{tokenize, TokenStore},
             ParseMode,
         },
-        parse_html_file, parse_html_input, HtmlParseError, HtmlParseResult,
+        parse_html_input, HtmlParseError, HtmlParseResult,
     };
     use sleek_ast::{HtmlTag, HtmlToken, Query};
     use sleek_utils::{MatrixIterator, Node, QueueIterator};
@@ -243,13 +243,53 @@ mod tests {
 
     #[test]
     fn it_parses_file() {
+        let input = std::fs::read_to_string("src/html/test.html").unwrap();
         let time = Instant::now();
-
-        let res = parse_html_file("src/html/test.html", ParseMode::Synchronous).unwrap();
+        let res = parse_html_input(&input, ParseMode::Synchronous);
         println!("{}", res.tree.query_selector_all("div[class]").len());
-
         println!("{:?}", time.elapsed());
-
         assert_eq!(res.errors.len(), 0)
+    }
+
+    #[test]
+    fn it_parses_elements_speculatively() {
+        let res = parse_html_input(
+            "<div><input/><div><span></span></div></div>",
+            ParseMode::Speculative,
+        );
+        println!("{:#?}", res.tree);
+
+        assert_eq!(res.errors.len(), 0, "Errors encountered: {:?}", res.errors)
+    }
+
+    #[test]
+    fn it_parses_elements_with_text_speculatively() {
+        let res = parse_html_input(
+            "<html>
+                <head></head>
+                <body>
+                    <p>This is inner text.</p>
+                </body>
+            </html>",
+            ParseMode::Speculative,
+        );
+        assert_eq!(
+            res.tree.children().next().unwrap().get_text_content(),
+            "This is inner text."
+        );
+
+        assert_eq!(res.errors.len(), 0, "Errors encountered: {:?}", res.errors)
+    }
+
+    #[test]
+    fn it_finds_unclosed_tags_speculatively() {
+        let res = parse_html_input(
+            "<div>
+        <button type=button>
+        <p> Hello world! </p>
+        </div>",
+            ParseMode::Speculative,
+        );
+        assert_eq!(res.errors.len(), 2, "Errors encountered: {:?}", res.errors)
     }
 }
