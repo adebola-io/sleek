@@ -332,3 +332,11 @@ impl Clone for ElementRef {
         }
     }
 }
+
+#[macro_export]
+/// Creates an element reference.
+macro_rules! element {
+    ($l:expr) => {
+        ElementRef::new($l)
+    };
+}

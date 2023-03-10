@@ -4,6 +4,8 @@ use std::fmt::Debug;
 
 use sleek_utils::MutableCountRef;
 
+use crate::DocTypeIdentifier;
+
 use super::ElementRef;
 
 #[derive(Clone, PartialEq)]
@@ -45,8 +47,9 @@ impl ElementSpan {
 
 #[derive(Debug)]
 pub struct HtmlDocType {
-    name: String,
-    force_quirks: bool,
+    pub name: String,
+    pub r#type: Option<DocTypeIdentifier>,
+    pub force_quirks: bool,
 }
 
 #[derive(Debug)]
@@ -56,18 +59,13 @@ pub struct HtmlTextNode {
 }
 
 #[derive(Debug)]
-pub struct DocRef {
-    doctype: MutableCountRef<HtmlDocType>,
-}
-
-#[derive(Debug)]
 pub struct HtmlComment {
     pub content: String,
     pub span: Span,
 }
 
 pub enum HtmlNode {
-    DocType(DocRef),
+    DocType(HtmlDocType),
     Text(HtmlTextNode),
     Element(ElementRef),
     Comment(HtmlComment),

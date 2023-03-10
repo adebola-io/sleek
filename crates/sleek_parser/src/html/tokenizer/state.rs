@@ -35,6 +35,13 @@ pub fn tokenize(token_store: &mut TokenStore, iterator: &mut QueueMatrix<Chars<'
                     token_store.set_start(iterator);
                     state = State::OpeningTag
                 }
+                // Parse error caused by null character.
+                Some('\0') => {
+                    if !token_store.empty() {
+                        token_store.emit(Event::Text, iterator);
+                    }
+                    token_store.error(ErrorType::InvalidCharacter, iterator);
+                }
                 Some(ch) => {
                     // Collect the starting point of the text node.
                     if token_store.empty() {
@@ -51,40 +58,6 @@ pub fn tokenize(token_store: &mut TokenStore, iterator: &mut QueueMatrix<Chars<'
             },
             // A tag has been opened.
             State::OpeningTag => match iterator.next() {
-                Some('/') => {
-                    // There is nothing between < and /. Parse as closing tag.
-                    if token_store.empty() {
-                        state = State::ClosingTag
-                    } else {
-                        // Open tag is possibly self-closing.
-                        loop {
-                            match iterator.next() {
-                                // Skip whitespace.
-                                Some(ch) if ch.is_whitespace() => {}
-                                // tag is self-closing.
-                                Some('>') => {
-                                    token_store.emit(Event::OpenerTag(true), iterator);
-                                    state = State::Data;
-                                    break;
-                                }
-                                // Parse error. Scan character again as attribute.
-                                Some(ch) => {
-                                    token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
-                                    iterator.push(ch);
-                                    state = State::AttributeName;
-                                    break;
-                                }
-                                // Tag was unclosed.
-                                None => {
-                                    token_store.clear();
-                                    token_store.error(ErrorType::UnexpectedEndOfInput, iterator);
-                                    state = State::Data;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
                 Some('!') => {
                     if token_store.empty() {
                         // Comment or Doctype tag.
@@ -138,6 +111,34 @@ pub fn tokenize(token_store: &mut TokenStore, iterator: &mut QueueMatrix<Chars<'
                         token_store.push('!');
                     }
                 }
+                Some('/') => {
+                    // There is nothing between < and /. Parse as closing tag.
+                    if token_store.empty() {
+                        state = State::ClosingTag
+                    } else {
+                        // Open tag is possibly self-closing.
+                        iterator.next_while(|ch| ch.is_whitespace());
+                        match iterator.next() {
+                            // tag is self-closing.
+                            Some('>') => {
+                                token_store.emit(Event::OpenerTag(true), iterator);
+                                state = State::Data;
+                            }
+                            // Parse error. Scan character again as attribute.
+                            Some(ch) => {
+                                token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
+                                iterator.push(ch);
+                                state = State::AttributeName;
+                            }
+                            // Tag was unclosed.
+                            None => {
+                                token_store.clear();
+                                token_store.error(ErrorType::UnexpectedEndOfInput, iterator);
+                                state = State::Data;
+                            }
+                        }
+                    }
+                }
                 Some('>') => {
                     // Parse <> as text.
                     if token_store.empty() {
@@ -153,7 +154,7 @@ pub fn tokenize(token_store: &mut TokenStore, iterator: &mut QueueMatrix<Chars<'
                 }
                 Some(ch) if ch.is_ascii_alphanumeric() || ch == '-' => {
                     // Tags cannot start with numeric values. Reparse the tag as plain text.
-                    if token_store.empty() && ch.is_numeric() {
+                    if token_store.empty() && (ch.is_numeric() || ch == '-') {
                         token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
                         token_store.push('<');
                         token_store.push(ch);
@@ -175,8 +176,18 @@ pub fn tokenize(token_store: &mut TokenStore, iterator: &mut QueueMatrix<Chars<'
                         state = State::AttributeName;
                     }
                 }
-                // Invalid character.
-                Some(_) => {}
+                Some(ch) => {
+                    if token_store.empty() {
+                        // Emit as text.
+                        iterator.push('<');
+                        iterator.push(ch);
+                        token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
+                        state = State::Data;
+                    } else {
+                        // Add to tag name.
+                        token_store.push(ch);
+                    }
+                }
                 None => {
                     token_store.error(ErrorType::UnexpectedEndOfInput, iterator);
                     // Emit as text.
@@ -312,18 +323,14 @@ pub fn tokenize(token_store: &mut TokenStore, iterator: &mut QueueMatrix<Chars<'
                     state = State::Data
                 }
                 Some(ch) => {
-                    // There was an unexpected character in the closing tag, probably an attribute.
-                    token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
-                    // Skip over the next set of characters until the >.
-                    loop {
-                        match iterator.next() {
-                            Some('>') => {
-                                state = State::Data;
-                                break;
-                            }
-                            Some(_) => {}
-                            None => break,
-                        }
+                    if token_store.empty() {
+                        // Emit as text.
+                        iterator.push(ch);
+                        token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
+                        state = State::BogusComment
+                    } else {
+                        // Add to tag name.
+                        token_store.push(ch);
                     }
                 }
                 None => {
@@ -390,40 +397,49 @@ pub fn tokenize(token_store: &mut TokenStore, iterator: &mut QueueMatrix<Chars<'
                 state = State::Data;
             }
             State::Doctype => {
+                let mut _force_quirks = false;
                 let mut ended = false;
-                let mut identifier = None;
+                let mut r#type = None;
 
                 // Expect a whitespace character.
                 match iterator.next() {
                     Some(ch) => {
                         // Parse error. parse anyway.
-                        if !ch.is_whitespace() {
-                            iterator.push(ch);
-                            token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
-                        } else {
+                        if ch.is_whitespace() {
                             // One whitespace found, Ignore rest.
                             iterator.next_while(|ch| ch.is_whitespace());
+                        } else {
+                            iterator.push(ch);
+                            token_store.error(ErrorType::UnexpectedCharacter(ch), iterator);
                         }
                     }
-                    None => ended = true,
+                    None => {
+                        ended = true;
+                    }
                 }
 
-                let root_element: String =
-                    iterator.collect_until(|ch| ch.is_whitespace() || ch == &'>');
+                let name: String = iterator.collect_until(|ch| ch.is_whitespace() || ch == &'>');
 
                 // Skip whitespace.
                 iterator.next_while(|ch| ch.is_whitespace());
 
                 match iterator.next() {
-                    Some('>') => {}
+                    Some('>') => {
+                        _force_quirks = true;
+                        token_store.error(ErrorType::UnexpectedCharacter('>'), iterator);
+                    }
+                    Some('\0') => {
+                        token_store.error(ErrorType::InvalidCharacter, iterator);
+                        token_store.push('\u{fffd}');
+                    }
                     // Try to parse identifier.
                     Some(ch @ ('p' | 'P' | 's' | 'S')) => {
                         let mut identifier_string: String = iterator.collect_next(5);
                         identifier_string.insert(0, ch);
                         if identifier_string.to_ascii_lowercase() == "system" {
-                            identifier = Some(DocTypeIdentifier::System);
+                            r#type = Some(DocTypeIdentifier::System);
                         } else if identifier_string.to_ascii_lowercase() == "public" {
-                            identifier = Some(DocTypeIdentifier::Public);
+                            r#type = Some(DocTypeIdentifier::Public);
                         } else {
                             token_store.error(ErrorType::IndecipherableDocType, iterator);
                             iterator.find(|ch| ch == &'>');
@@ -435,11 +451,19 @@ pub fn tokenize(token_store: &mut TokenStore, iterator: &mut QueueMatrix<Chars<'
                     }
                     None => ended = true,
                 }
-                token_store.emit(Event::DocType(root_element, identifier), iterator);
                 if ended {
+                    _force_quirks = true;
                     token_store.error(ErrorType::UnexpectedEndOfInput, iterator);
                     break;
                 }
+                token_store.emit(
+                    Event::DocType {
+                        name,
+                        r#type,
+                        force_quirks: _force_quirks,
+                    },
+                    iterator,
+                );
                 state = State::Data;
             }
         }

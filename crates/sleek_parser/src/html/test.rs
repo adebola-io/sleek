@@ -42,6 +42,14 @@ mod tests {
         assert_eq!(res.tokens.len(), 2);
         assert_eq!(res.errors.len(), 1);
     }
+
+    #[test]
+    fn it_tokenizes_tag_name() {
+        let res = tokenize_html("<html$$$$></html$$$$>");
+        assert_eq!(res.errors.len(), 0, "Errors: {:?}", res.errors);
+        assert_eq!(res.tokens.len(), 3, "Tokenized {:?}", res.tokens);
+    }
+
     #[test]
     fn it_tokenizes_open_tag() {
         let res = tokenize_html("<tag>");

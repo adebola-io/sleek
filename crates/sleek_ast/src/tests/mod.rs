@@ -3,11 +3,11 @@ mod tests {
 
     use sleek_utils::Node;
 
-    use crate::{ElementRef, HtmlTag as Tag, Query};
+    use crate::{element, ElementRef, HtmlTag as Tag, Query};
 
     #[test]
     fn it_parses_class_selector() {
-        let mut aside = ElementRef::new("aside");
+        let mut aside = element!("aside");
         aside.add_class("sidebar");
         aside.add_class("scrollable");
         aside.add_class("blue-bg");
@@ -18,7 +18,7 @@ mod tests {
 
     #[test]
     fn it_parses_id_and_class_selector() {
-        let mut para = ElementRef::new("p");
+        let mut para = element!("p");
         para.set_attribute("id", "paragraph-1");
         para.add_class("paragraph");
         assert!(para.matches("#paragraph-1.paragraph"));
@@ -26,7 +26,7 @@ mod tests {
     }
     #[test]
     fn it_parses_tag_selector() {
-        let mut div = ElementRef::new("div");
+        let mut div = element!("div");
         div.add_class("box");
         div.set_attribute("id", "box-1");
 
@@ -38,7 +38,7 @@ mod tests {
 
     #[test]
     fn it_parses_attributes() {
-        let mut button = ElementRef::new("button");
+        let mut button = element!("button");
         button.add_class("clickable");
         button.set_attribute("title", "Click Me");
         button.set_attribute("style", "background-color: blue;");
@@ -51,14 +51,14 @@ mod tests {
 
     #[test]
     fn it_parses_descendants() {
-        let mut div = ElementRef::new("div");
+        let mut div = element!("div");
         div.add_class("container");
 
-        let mut button = ElementRef::new("button");
+        let mut button = element!("button");
         button.set_attribute("id", "button-1");
         button.add_class("bg-transparent");
 
-        let mut span = ElementRef::new("span");
+        let mut span = element!("span");
         span.add_class("text-red-500");
         span.set_attribute("title", "Click Me!");
 
@@ -73,9 +73,9 @@ mod tests {
 
     #[test]
     fn it_parses_nuclear_relations() {
-        let mut html = ElementRef::new("html");
-        let mut head = ElementRef::new("head");
-        let title = ElementRef::new("title");
+        let mut html = element!("html");
+        let mut head = element!("head");
+        let title = element!("title");
 
         html.append(&head);
         head.append(&title);
@@ -86,14 +86,14 @@ mod tests {
 
     #[test]
     fn it_tests_universal_selector() {
-        let mut ul = ElementRef::new("ul");
+        let mut ul = element!("ul");
         ul.add_class("list");
 
-        let mut item = ElementRef::new("list");
+        let mut item = element!("list");
         ul.append(&item);
         item.add_class("list-item");
 
-        let p = ElementRef::new("p");
+        let p = element!("p");
         item.append(&p);
 
         assert!(p.matches("*"));
@@ -107,11 +107,11 @@ mod tests {
 
     #[test]
     fn it_parses_selector_groups() {
-        let mut img = ElementRef::new("img");
+        let mut img = element!("img");
         img.add_class("banner-image");
         img.set_attribute("src", "http://example.com");
 
-        let mut p = ElementRef::new("p");
+        let mut p = element!("p");
         p.set_attribute("id", "paragraph");
 
         let selector = ".banner-image, p#paragraph, span";
@@ -122,7 +122,7 @@ mod tests {
 
     #[test]
     fn it_parses_bigger_group() {
-        let div = ElementRef::new("div");
+        let div = element!("div");
 
         assert!(div.matches(
             "html, 
@@ -135,10 +135,10 @@ mod tests {
 
     #[test]
     fn it_parses_complex_selectors() {
-        let mut ul = ElementRef::new("ul");
+        let mut ul = element!("ul");
         ul.add_class("comments-list");
 
-        let mut li = ElementRef::new("li");
+        let mut li = element!("li");
         li.add_class("comment-body");
 
         ul.append(&li);
@@ -216,16 +216,16 @@ mod tests {
 
     #[test]
     fn it_tests_element_ref_equality() {
-        let ref_1 = ElementRef::new("hello");
+        let ref_1 = element!("hello");
         let ref_2 = ref_1.clone();
         assert_eq!(ref_1, ref_2);
     }
 
     #[test]
     fn it_tests_query_selection() {
-        let mut div = ElementRef::new("div");
-        let mut span = ElementRef::new("a");
-        let mut a = ElementRef::new("a");
+        let mut div = element!("div");
+        let mut span = element!("a");
+        let mut a = element!("a");
         div.append(&span);
         span.append(&a);
 

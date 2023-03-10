@@ -15,7 +15,11 @@ pub enum Event {
     Close,
     Comment,
     OpenerTag(bool),
-    DocType(String, Option<DocTypeIdentifier>),
+    DocType {
+        name: String,
+        r#type: Option<DocTypeIdentifier>,
+        force_quirks: bool,
+    },
 }
 
 pub struct TokenStore {
@@ -94,7 +98,15 @@ impl TokenStore {
                 span,
             },
             Event::Comment => HtmlToken::Comment { content, span },
-            Event::DocType(root, identifier) => HtmlToken::DocType { root, identifier },
+            Event::DocType {
+                name,
+                r#type,
+                force_quirks,
+            } => HtmlToken::DocType {
+                name,
+                r#type,
+                force_quirks,
+            },
         };
 
         match &self.listener {

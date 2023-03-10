@@ -13,8 +13,8 @@ use crate::{
 };
 
 use sleek_ast::{
-    ElementRef, HtmlAttribute, HtmlComment, HtmlDocument, HtmlNode, HtmlTag, HtmlTextNode,
-    HtmlToken, Span,
+    ElementRef, HtmlAttribute, HtmlComment, HtmlDocType, HtmlDocument, HtmlNode, HtmlTag,
+    HtmlTextNode, HtmlToken, Span,
 };
 
 use crate::HtmlParseError;
@@ -91,7 +91,19 @@ impl Parser {
                 self.parse_comment(content, span);
                 ParserResponse::Continue
             }
-            _ => todo!(),
+            HtmlToken::DocType {
+                name,
+                r#type,
+                force_quirks,
+            } => {
+                self.tree.nodes.push(HtmlNode::DocType(HtmlDocType {
+                    name,
+                    r#type,
+                    force_quirks,
+                }));
+                ParserResponse::Continue
+            }
+            _ => unreachable!(),
         }
     }
     fn parse_opening_tag(

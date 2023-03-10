@@ -5,8 +5,9 @@ use super::HtmlTag;
 #[derive(Debug, PartialEq)]
 pub enum HtmlToken {
     DocType {
-        root: String,
-        identifier: Option<DocTypeIdentifier>,
+        name: String,
+        r#type: Option<DocTypeIdentifier>,
+        force_quirks: bool,
     },
     OpeningTag {
         name: HtmlTag,
