@@ -73,7 +73,12 @@ pub fn parse_selector(selector: &str) -> Result<SelectorStore, SelectorError> {
                     store.emit(Emit::Class)?;
                     state = State::PossibleNext;
                 }
-                Some(ch @ ('[' | '.' | ':' | '#' | ',')) => {
+                Some(ch @ ('>' | ',')) => {
+                    store.emit(Emit::Class)?;
+                    chars.push(ch);
+                    state = State::PossibleNext
+                }
+                Some(ch @ ('[' | '.' | ':' | '#')) => {
                     // Push parsed data.
                     store.emit(Emit::Class)?;
                     state = State::Start;
@@ -93,11 +98,11 @@ pub fn parse_selector(selector: &str) -> Result<SelectorStore, SelectorError> {
                     Some('\t' | '\n' | '\x0C' | ' ' | '\r') => {
                         state = State::PossibleNext;
                     }
-                    Some(ch @ ('[' | '.' | ':' | '#' | ',')) => {
+                    Some(ch @ ('[' | '.' | ':' | '#')) => {
                         state = State::Start;
                         chars.push(ch);
                     }
-                    Some(ch @ ('>' | '+' | '~')) => {
+                    Some(ch @ ('>' | '+' | '~' | ',')) => {
                         state = State::PossibleNext;
                         chars.push(ch);
                     }
@@ -112,7 +117,12 @@ pub fn parse_selector(selector: &str) -> Result<SelectorStore, SelectorError> {
                     store.emit(Emit::Id)?;
                     state = State::PossibleNext;
                 }
-                Some(ch @ ('[' | '.' | ':' | '#' | ',')) => {
+                Some(ch @ ('>' | ',')) => {
+                    store.emit(Emit::Id)?;
+                    chars.push(ch);
+                    state = State::PossibleNext
+                }
+                Some(ch @ ('[' | '.' | ':' | '#')) => {
                     // Push parsed data.
                     store.emit(Emit::Id)?;
                     state = State::Start;
@@ -126,15 +136,16 @@ pub fn parse_selector(selector: &str) -> Result<SelectorStore, SelectorError> {
             },
             // Expecting an attribute name. After a [
             State::AttributeName => match chars.next() {
-                Some('\t' | '\n' | '\x0C' | ' ' | '\r' | '[' | '.' | ':' | '#' | ',') | None => {
-                    Err(SelectorError::InvalidSelector)?
-                }
                 Some('=') => state = State::AttributeValue,
                 Some(']') => {
                     store.emit(Emit::Attribute)?;
                     state = State::PossibleEnd;
                 }
+                Some(ch) if !(ch.is_alphanumeric() || matches!(ch, '_' | '-')) => {
+                    Err(SelectorError::InvalidSelector)?
+                }
                 Some(ch) => store.collect(ch),
+                None => Err(SelectorError::InvalidSelector)?,
             },
 
             // Expecting an attribute value. After a =
@@ -145,7 +156,7 @@ pub fn parse_selector(selector: &str) -> Result<SelectorStore, SelectorError> {
                     Some('\'') => quote_type = QuoteType::Single,
                     Some('"') => quote_type = QuoteType::Double,
                     Some(ch) => {
-                        if ch == '<' {
+                        if !(ch.is_alphanumeric() || matches!(ch, '_' | '-')) {
                             Err(SelectorError::InvalidSelector)?
                         }
                         chars.push(ch);
@@ -184,13 +195,18 @@ pub fn parse_selector(selector: &str) -> Result<SelectorStore, SelectorError> {
                     store.emit(Emit::Tag)?;
                     state = State::PossibleNext;
                 }
-                Some(ch @ ('[' | '.' | ':' | '#' | ',')) => {
+                Some(ch @ ('>' | ',')) => {
+                    store.emit(Emit::Tag)?;
+                    chars.push(ch);
+                    state = State::PossibleNext
+                }
+                Some(ch @ ('[' | '.' | ':' | '#')) => {
                     // Push parsed data.
                     store.emit(Emit::Tag)?;
                     state = State::Start;
                     chars.push(ch);
                 }
-                Some(ch @ ('a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-')) => store.collect(ch),
+                Some(ch) if ch.is_alphanumeric() || matches!(ch, '_' | '-') => store.collect(ch),
                 Some(_) => Err(SelectorError::InvalidSelector)?,
                 None => {
                     store.emit(Emit::Tag)?;
@@ -204,11 +220,10 @@ pub fn parse_selector(selector: &str) -> Result<SelectorStore, SelectorError> {
                     state = State::Start;
                     chars.push(ch);
                 }
-                Some(ch @ ('\t' | '\n' | '\x0C' | ' ' | '\r')) => {
-                    state = State::PossibleNext;
+                Some(ch) => {
                     chars.push(ch);
+                    state = State::PossibleNext;
                 }
-                Some(_) => todo!(),
                 None => break,
             },
 
@@ -220,6 +235,10 @@ pub fn parse_selector(selector: &str) -> Result<SelectorStore, SelectorError> {
                 Some('>') => {
                     store.shift(Relation::Child);
                     state = State::CompulsoryNext;
+                }
+                Some(',') => {
+                    store.shift(Relation::Group);
+                    state = State::CompulsoryNext
                 }
                 Some(ch) => {
                     store.shift(Relation::Descendant);

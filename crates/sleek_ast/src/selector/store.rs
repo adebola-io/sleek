@@ -66,6 +66,8 @@ impl SelectorStore {
         // Check previous selector for relation.
         match self.selectors[0].patterns.get_mut(0) {
             // Parsed selector is a descendant of previous.
+            // Parsed selector belongs to the last item in a group.
+            Some(SelectorPattern::Group(group)) => group.last_mut().unwrap().patterns.push(pattern),
             Some(SelectorPattern::Descendant([_, child])) => child.patterns.push(pattern),
             // Parsed selector is simple.
             _ => {
@@ -90,27 +92,61 @@ impl SelectorStore {
     }
     /// Creates a new host selector with a relation to the current host selector.
     pub fn shift(&mut self, relation: Relation) {
-        match relation {
-            // A catch-all selector, e.g. "div span", a span at any level within a div.
-            Relation::Descendant => {
-                // Move current selector to dec
-                let last = self.selectors.pop().unwrap();
-                self.selectors.push(Selector::new());
-                self.selectors[0]
-                    .patterns
-                    .push(SelectorPattern::Descendant([last, Selector::new()]));
+        let mut last = self.selectors.pop().unwrap();
+
+        if let Some(SelectorPattern::Group(group)) = last.patterns.get_mut(0) {
+            match relation {
+                Relation::Descendant => {
+                    let last_added_selector = group.pop().unwrap();
+                    let mut new_selector = Selector::new();
+                    new_selector.patterns.push(SelectorPattern::Descendant([
+                        last_added_selector,
+                        Selector::new(),
+                    ]));
+                    group.push(new_selector)
+                }
+                Relation::Child => {
+                    let last_added_selector = group.pop().unwrap();
+                    let mut new_selector = Selector::new();
+                    new_selector.patterns.push(SelectorPattern::Child([
+                        last_added_selector,
+                        Selector::new(),
+                    ]));
+                    group.push(new_selector)
+                }
+                Relation::Group => group.push(Selector::new()),
+                Relation::AdjacentSibling => todo!(),
+                Relation::GeneralSibling => todo!(),
             }
-            // Direct child selector, e.g. "section > h1", a h1 which is an immediate child of section.
-            Relation::Child => {
-                let last = self.selectors.pop().unwrap();
-                self.selectors.push(Selector::new());
-                self.selectors[0]
-                    .patterns
-                    .push(SelectorPattern::Child([last, Selector::new()]));
+            self.selectors.push(last);
+        } else {
+            match relation {
+                // A catch-all selector, e.g. "div span", a span at any level within a div.
+                Relation::Descendant => {
+                    self.selectors.push(Selector::new());
+                    // Move current selector to dec
+                    self.selectors[0]
+                        .patterns
+                        .push(SelectorPattern::Descendant([last, Selector::new()]));
+                }
+                // Direct child selector, e.g. "section > h1", a h1 which is an immediate child of section.
+                Relation::Child => {
+                    self.selectors.push(Selector::new());
+                    self.selectors[0]
+                        .patterns
+                        .push(SelectorPattern::Child([last, Selector::new()]));
+                }
+                // A collection of selectors e.g. "p.text, div, span".
+                Relation::Group => {
+                    // Check if group is already counting.
+                    self.selectors.push(Selector::new());
+                    self.selectors[0]
+                        .patterns
+                        .push(SelectorPattern::Group(vec![last, Selector::new()]));
+                }
+                Relation::AdjacentSibling => todo!(),
+                Relation::GeneralSibling => todo!(),
             }
-            Relation::AdjacentSibling => todo!(),
-            Relation::GeneralSibling => todo!(),
-            Relation::Group => todo!(),
         }
     }
 }

@@ -89,6 +89,14 @@ impl ElementRef {
     pub fn new(tag_name: &str) -> Self {
         Self::from(HtmlTag::new(tag_name.to_string()))
     }
+    /// Create a group of element refs.
+    pub fn group(tag_names: Vec<&str>) -> Vec<Self> {
+        let mut elements = vec![];
+        for tag_name in tag_names {
+            elements.push(Self::new(tag_name))
+        }
+        elements
+    }
     pub fn from(name: HtmlTag) -> Self {
         let mut element = Element::new(name);
         element.refs += 1;

@@ -46,7 +46,7 @@ mod tests {
 
         assert!(button.matches("button.clickable[darkmode]"));
         assert!(button.matches("[style]"));
-        assert!(button.matches("[title=\"Click Me\"]"))
+        assert!(button.matches("[title='Click Me']"))
     }
 
     #[test]
@@ -67,7 +67,7 @@ mod tests {
 
         assert!(span.matches("div button span"));
         assert!(span.matches(".container .bg-transparent .text-red-500"));
-        assert!(span.matches("div [title]"));
+        assert!(span.matches("[title]"));
         assert!(span.matches("#button-1 .text-red-500[title]"));
     }
 
@@ -80,7 +80,7 @@ mod tests {
         html.append(&head);
         head.append(&title);
 
-        assert!(title.matches("head > title"));
+        assert!(title.matches("head>title"));
         assert!(title.matches("html > head > title"));
     }
 
@@ -101,8 +101,49 @@ mod tests {
         assert!(p.matches("* * *"));
         assert!(p.matches("* p"));
         assert!(p.matches(".list  *"));
-        assert!(p.matches("* > p"));
-        assert!(p.matches("* > [class] > p"));
+        assert!(p.matches("*>p"));
+        assert!(p.matches("*>[class]>p"));
+    }
+
+    #[test]
+    fn it_parses_selector_groups() {
+        let mut img = ElementRef::new("img");
+        img.add_class("banner-image");
+        img.set_attribute("src", "http://example.com");
+
+        let mut p = ElementRef::new("p");
+        p.set_attribute("id", "paragraph");
+
+        let selector = ".banner-image, p#paragraph, span";
+
+        assert!(p.matches(selector));
+        assert!(img.matches(selector))
+    }
+
+    #[test]
+    fn it_parses_bigger_group() {
+        let div = ElementRef::new("div");
+
+        assert!(div.matches(
+            "html, 
+            body, 
+            div, 
+            span, 
+            applet"
+        ))
+    }
+
+    #[test]
+    fn it_parses_complex_selectors() {
+        let mut ul = ElementRef::new("ul");
+        ul.add_class("comments-list");
+
+        let mut li = ElementRef::new("li");
+        li.add_class("comment-body");
+
+        ul.append(&li);
+
+        assert!(li.matches("ul.comments-list .comment-body"));
     }
 
     #[test]
